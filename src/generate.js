@@ -42,15 +42,6 @@ export async function generateContactData(sourcePath, outPath) {
       continue;
     }
 
-    if (cfg.type === 'instagram') {
-      if (!cfg.url) {
-        warnings.push('Entry "' + key + '" has type "instagram" but no "url" - skipped.');
-        continue;
-      }
-      output[key] = { type: 'instagram', url: cfg.url };
-      continue;
-    }
-
     if (typeof cfg.value !== 'string' || !cfg.value) {
       warnings.push('Entry "' + key + '" is missing a "value" to obfuscate - skipped.');
       continue;
@@ -68,7 +59,7 @@ export async function generateContactData(sourcePath, outPath) {
   // Round-trip verification.
   const verified = [];
   for (const [key, cfg] of Object.entries(source)) {
-    if (!output[key] || cfg.type === 'instagram') continue;
+    if (!output[key]) continue;
     const decoded = decodeParts(output[key].parts);
     verified.push({ key, ok: decoded === cfg.value, decoded });
   }

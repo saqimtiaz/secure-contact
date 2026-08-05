@@ -1,12 +1,12 @@
 {
   "name": "secure-contact",
-  "version": "1.0.0",
-  "description": "A reusable <secure-contact> custom element and CLI for securely displaying email, phone, WhatsApp, and Instagram contact links on static sites.",
+  "version": "1.0.2",
+  "description": "A progressive-enhancement script and CLI for securely displaying email, phone, and WhatsApp contact links on static sites using plain semantic HTML.",
   "type": "module",
   "main": "./src/secure-contact.js",
   "exports": {
     ".": "./src/secure-contact.js",
-    "./element": "./src/secure-contact.js",
+    "./css": "./src/secure-contact.css",
     "./codecs": "./src/codecs.js",
     "./obfuscate": "./src/obfuscate.js",
     "./generate": "./src/generate.js"
@@ -25,8 +25,8 @@
     "node": ">=18"
   },
   "keywords": [
-    "custom-element",
-    "web-component",
+    "progressive-enhancement",
+    "accessibility",
     "contact-form",
     "anti-scraping",
     "email-obfuscation"

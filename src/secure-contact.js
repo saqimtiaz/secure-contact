@@ -1,8 +1,10 @@
 /**
  * secure-contact.js
  * ------------------
- * Defines the <secure-contact> custom element. Importing this module
- * (side-effect only, no exports) registers the element.
+ * Progressively enhances plain, semantic HTML — it does not define a
+ * custom element and does not own any markup. You write ordinary
+ * `<address>` / `<dl>` / `<button>` markup on the page; this script finds
+ * it and wires up the reveal behavior.
  *
  * Works two ways:
  *   - With a bundler:  import 'secure-contact';
@@ -13,244 +15,184 @@
  *     serve this file's sibling obfuscate.js/codecs.js at the same
  *     relative path.
  *
- * Usage:
- *   <secure-contact key="email">✉️ Show email</secure-contact>
- *   <secure-contact key="phone">📞 Show phone number</secure-contact>
- *   <secure-contact key="whatsapp">💬 Message on WhatsApp</secure-contact>
- *   <secure-contact key="instagram">📷 Instagram</secure-contact>
+ * Markup contract (see README for the full example):
  *
- * Attributes:
- *   key   (required) - which entry to read from the JSON data file
- *   src   (optional) - path to the JSON data file, default "./contact-data.json"
+ *   <address data-secure-contact-src="./contact-data.json">
+ *     <dl>
+ *       <div>
+ *         <dt>Email</dt>
+ *         <dd><button type="button" data-secure-contact="email">Show email</button></dd>
+ *       </div>
+ *       <div>
+ *         <dt>Phone</dt>
+ *         <dd><button type="button" data-secure-contact="phone">Show phone number</button></dd>
+ *       </div>
+ *       <div>
+ *         <dt>WhatsApp</dt>
+ *         <dd><button type="button" data-secure-contact="whatsapp">Message on WhatsApp</button></dd>
+ *       </div>
+ *     </dl>
+ *   </address>
+ *
+ * Attributes the script reads:
+ *   data-secure-contact       (required, on a <button>) - the key to read
+ *                              from the JSON data file.
+ *   data-secure-contact-src   (optional, on the button or any ancestor) -
+ *                              path to the JSON data file. Default
+ *                              "./contact-data.json".
+ *   data-secure-contact-animate (optional, on the button or any ancestor) -
+ *                              presence enables the vertical-expand reveal
+ *                              animation (see secure-contact.css). Without
+ *                              it, the value simply appears.
+ *
+ * Instagram (or any other un-obfuscated link) doesn't need this script at
+ * all — write it as a normal `<a href="https://instagram.com/...">` in
+ * your markup and skip the button/data-file/reveal pattern entirely.
  *
  * Reveal behavior:
- *   - email / phone: the button stays visible and keeps its label. A space
- *     is reserved beneath it (even before any click, to avoid layout
- *     shift) where the decoded value is displayed once clicked.
+ *   - email / tel: the button stays visible and keeps its label. Clicking
+ *     decodes the value and inserts a link after the button, inside the
+ *     same <dd>. The button gets aria-expanded/aria-controls pointing at
+ *     the inserted element.
  *   - whatsapp: the button stays visible; clicking opens wa.me in a new
- *     tab. Nothing is displayed inline, so no reserved space is added.
- *   - instagram: not obfuscated, so it skips the button/reveal pattern
- *     entirely and renders as a plain link immediately.
+ *     tab. Nothing is inserted, so no aria-expanded/aria-controls is
+ *     added.
  *
- * Styling (from the host page's CSS, no shadow-piercing needed):
- *   secure-contact {
- *     --secure-contact-bg: #f4f4f5;
- *     --secure-contact-bg-hover: #ececee;
- *     --secure-contact-border: #ddd;
- *     --secure-contact-color: inherit;
- *     --secure-contact-radius: 8px;
- *     --secure-contact-padding: 0.55em 1.1em;
- *     --secure-contact-reveal-height: 1.6em;
- *   }
- *   secure-contact::part(button),
- *   secure-contact::part(link) { font-weight: 600; }
+ * Styling: see secure-contact.css for optional base styles, the reveal
+ * animation, and the CSS custom properties it exposes.
  */
 
 import { decodeParts } from './obfuscate.js';
 
-const DEFAULT_LABELS = {
-  email: 'Show email',
-  tel: 'Show phone number',
-  whatsapp: 'Message on WhatsApp',
-  instagram: 'Instagram'
-};
+const DEFAULT_SRC = './contact-data.json';
+const INLINE_DISPLAY_TYPES = new Set(['email', 'tel']);
 
-// Keys that display their decoded value inline beneath the button, and
-// so need reserved space from the start. Extend this if you add more
-// "display a value" contact types later.
-const INLINE_DISPLAY_KEYS = new Set(['email', 'phone']);
+// Shared across every enhanced button on the page: fetching the same src
+// twice (e.g. one button per contact method, same data file) only hits
+// the network once.
+const dataCache = new Map();
 
-const STYLE_TAG = `
-<style>
-  :host {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.35em;
+let uid = 0;
+
+function loadData(src) {
+  if (!dataCache.has(src)) {
+    dataCache.set(
+      src,
+      fetch(src).then((res) => {
+        if (!res.ok) throw new Error('Failed to load ' + src + ' (' + res.status + ')');
+        return res.json();
+      })
+    );
   }
+  return dataCache.get(src);
+}
 
-  button {
-    all: unset;
-    box-sizing: border-box;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5em;
-    background: var(--secure-contact-bg, #f4f4f5);
-    border: 1px solid var(--secure-contact-border, #ddd);
-    border-radius: var(--secure-contact-radius, 8px);
-    padding: var(--secure-contact-padding, 0.55em 1.1em);
-    font: inherit;
-    color: var(--secure-contact-color, inherit);
-  }
+function getSrc(button) {
+  const host = button.closest('[data-secure-contact-src]');
+  return (host && host.getAttribute('data-secure-contact-src')) || DEFAULT_SRC;
+}
 
-  button:hover { background: var(--secure-contact-bg-hover, #ececee); }
-  button:disabled { opacity: 0.6; cursor: default; }
+function animationEnabled(button) {
+  return button.closest('[data-secure-contact-animate]') !== null;
+}
 
-  /* Reserved space for the revealed value - present from first render,
-     so nothing on the page shifts when the value appears. */
-  .reveal {
-    display: flex;
-    align-items: center;
-    min-height: var(--secure-contact-reveal-height, 1.6em);
-  }
+/**
+ * Wires up a single trigger button. Idempotent - safe to call again on a
+ * button that's already enhanced (e.g. if you re-run initSecureContact
+ * after injecting more markup).
+ */
+function enhance(button) {
+  if (button.dataset.secureContactReady) return;
+  button.dataset.secureContactReady = 'true';
 
-  .reveal a {
-    all: unset;
-    cursor: pointer;
-    color: var(--secure-contact-color, inherit);
-    text-decoration: underline;
-    text-underline-offset: 2px;
-  }
+  const key = button.getAttribute('data-secure-contact');
+  const dd = button.closest('dd') || button.parentElement;
+  const originalLabel = button.textContent;
+  let revealed = false;
 
-  /* Standalone link render path (instagram) */
-  a.standalone {
-    all: unset;
-    box-sizing: border-box;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5em;
-    background: var(--secure-contact-bg, #f4f4f5);
-    border: 1px solid var(--secure-contact-border, #ddd);
-    border-radius: var(--secure-contact-radius, 8px);
-    padding: var(--secure-contact-padding, 0.55em 1.1em);
-    font: inherit;
-    color: var(--secure-contact-color, inherit);
-  }
+  button.addEventListener('click', () => {
+    if (revealed || button.disabled) return;
 
-  a.standalone:hover { background: var(--secure-contact-bg-hover, #ececee); }
-</style>
-`;
+    const src = getSrc(button);
+    button.disabled = true;
+    button.textContent = 'Loading…';
 
-class SecureContact extends HTMLElement {
-  // Shared across all instances on the page: fetching the same src twice
-  // (e.g. one <secure-contact> per contact method) only hits the network once.
-  static _dataCache = new Map();
-
-  static _loadData(src) {
-    if (!SecureContact._dataCache.has(src)) {
-      SecureContact._dataCache.set(
-        src,
-        fetch(src).then((res) => {
-          if (!res.ok) throw new Error('Failed to load ' + src + ' (' + res.status + ')');
-          return res.json();
-        })
-      );
-    }
-    return SecureContact._dataCache.get(src);
-  }
-
-  constructor() {
-    super();
-    this.attachShadow({ mode: 'open' });
-  }
-
-  connectedCallback() {
-    this._key = this.getAttribute('key');
-    this._src = this.getAttribute('src') || './contact-data.json';
-    this._label = (this.textContent || '').trim() || DEFAULT_LABELS[this._key] || 'Contact';
-    this._revealed = false;
-
-    if (this._key === 'instagram') {
-      // Not obfuscated - load and render immediately as a plain link,
-      // no button/reveal pattern needed.
-      this._renderInstagramLink();
-      return;
-    }
-
-    this._renderButton();
-  }
-
-  _renderButton() {
-    this.shadowRoot.innerHTML = STYLE_TAG;
-
-    const btn = document.createElement('button');
-    btn.part = 'button';
-    btn.type = 'button';
-    btn.textContent = this._label;
-    btn.addEventListener('click', () => this._reveal());
-    this.shadowRoot.appendChild(btn);
-
-    if (INLINE_DISPLAY_KEYS.has(this._key)) {
-      const reveal = document.createElement('div');
-      reveal.part = 'reveal';
-      reveal.className = 'reveal';
-      this.shadowRoot.appendChild(reveal);
-    }
-  }
-
-  _reveal() {
-    if (this._revealed) return; // email/phone: already shown, nothing to do
-
-    const btn = this.shadowRoot.querySelector('button');
-    if (!btn || btn.disabled) return;
-
-    const originalLabel = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = 'Loading…';
-
-    SecureContact._loadData(this._src)
+    loadData(src)
       .then((data) => {
-        const entry = data[this._key];
-        if (!entry) throw new Error('No contact entry for key "' + this._key + '"');
-        this._applyEntry(entry, btn, originalLabel);
+        const entry = data[key];
+        if (!entry) throw new Error('No contact entry for key "' + key + '"');
+        applyEntry(button, dd, entry, originalLabel, animationEnabled(button));
+        revealed = entry.type !== 'whatsapp'; // whatsapp re-opens on every click
       })
       .catch((err) => {
         console.error(err);
-        btn.textContent = 'Unable to load — try again';
-        btn.disabled = false;
+        button.textContent = 'Unable to load — try again';
+        button.disabled = false;
       });
-  }
+  });
+}
 
-  _applyEntry(entry, btn, originalLabel) {
-    const value = decodeParts(entry.parts);
+function applyEntry(button, dd, entry, originalLabel, animate) {
+  const value = decodeParts(entry.parts);
 
-    if (entry.type === 'email' || entry.type === 'tel') {
-      const href = (entry.type === 'email' ? 'mailto:' : 'tel:') + value;
-      this._renderInlineValue(href, value);
-      btn.textContent = originalLabel;
-      btn.disabled = false;
-      this._revealed = true; // button stays visible; value now shown beneath it
-    } else if (entry.type === 'whatsapp') {
-      window.open('https://wa.me/' + value, '_blank', 'noopener');
-      btn.textContent = originalLabel;
-      btn.disabled = false;
-      // Not marked _revealed - nothing displayed inline, so repeat clicks
-      // should keep working (reopens WhatsApp each time, from cached data).
-    } else {
-      throw new Error('Unknown contact type: ' + entry.type);
-    }
-  }
-
-  _renderInlineValue(href, text) {
-    const reveal = this.shadowRoot.querySelector('.reveal');
-    if (!reveal) return; // shouldn't happen for email/tel, but guard anyway
-    reveal.innerHTML = '';
-    const a = document.createElement('a');
-    a.part = 'link';
-    a.href = href;
-    a.textContent = text; // textContent, never innerHTML - safe from injection
-    reveal.appendChild(a);
-  }
-
-  _renderInstagramLink() {
-    this.shadowRoot.innerHTML = STYLE_TAG;
-    SecureContact._loadData(this._src)
-      .then((data) => {
-        const entry = data[this._key];
-        if (!entry || !entry.url) throw new Error('No instagram entry/url for key "' + this._key + '"');
-        const a = document.createElement('a');
-        a.part = 'link';
-        a.className = 'standalone';
-        a.href = entry.url;
-        a.target = '_blank';
-        a.rel = 'noopener';
-        a.textContent = this._label;
-        this.shadowRoot.appendChild(a);
-      })
-      .catch((err) => console.error(err));
+  if (INLINE_DISPLAY_TYPES.has(entry.type)) {
+    const href = (entry.type === 'email' ? 'mailto:' : 'tel:') + value;
+    insertReveal(button, dd, href, value, animate);
+    button.textContent = originalLabel;
+    button.disabled = false;
+  } else if (entry.type === 'whatsapp') {
+    window.open('https://wa.me/' + value, '_blank', 'noopener');
+    button.textContent = originalLabel;
+    button.disabled = false;
+  } else {
+    throw new Error('Unknown contact type: ' + entry.type);
   }
 }
 
-customElements.define('secure-contact', SecureContact);
+function insertReveal(button, dd, href, value, animate) {
+  const id = 'secure-contact-reveal-' + ++uid;
+
+  const reveal = document.createElement('div');
+  reveal.className = animate ? 'secure-contact-reveal secure-contact-reveal--animate' : 'secure-contact-reveal';
+  reveal.id = id;
+  reveal.setAttribute('aria-live', 'polite');
+
+  const inner = document.createElement('div');
+  inner.className = 'secure-contact-reveal-inner';
+
+  const link = document.createElement('a');
+  link.href = href;
+  link.textContent = value; // textContent, never innerHTML - safe from injection
+  inner.appendChild(link);
+  reveal.appendChild(inner);
+  dd.appendChild(reveal);
+
+  button.setAttribute('aria-controls', id);
+  button.setAttribute('aria-expanded', 'true');
+
+  if (animate) {
+    // Inserted in the collapsed (0fr) state by CSS; add .is-open a couple
+    // of frames later so the browser has committed the collapsed state
+    // first and the transition to 1fr actually animates.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => reveal.classList.add('is-open'));
+    });
+  }
+}
+
+/**
+ * Enhances every not-yet-enhanced trigger button under `root` (defaults
+ * to the whole document). Call this again after injecting new
+ * secure-contact markup into the page (e.g. from a client-side router).
+ */
+export function initSecureContact(root = document) {
+  root.querySelectorAll('[data-secure-contact]').forEach(enhance);
+}
+
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => initSecureContact());
+  } else {
+    initSecureContact();
+  }
+}

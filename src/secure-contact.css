@@ -1,0 +1,71 @@
+/**
+ * secure-contact.css
+ * -------------------
+ * Optional. secure-contact.js works with zero CSS - buttons are buttons,
+ * revealed links are links. This file adds:
+ *
+ *   1. Sensible default styling for the trigger buttons, themeable via
+ *      CSS custom properties.
+ *   2. The vertical-expand reveal animation, opt-in per
+ *      data-secure-contact-animate (see secure-contact.js docs).
+ *
+ * Include it however suits your build, e.g.:
+ *   <link rel="stylesheet" href="/vendor/secure-contact/secure-contact.css">
+ * or copy the parts you want into your own stylesheet.
+ */
+
+[data-secure-contact] {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  background: var(--secure-contact-bg, #f4f4f5);
+  border: 1px solid var(--secure-contact-border, #ddd);
+  border-radius: var(--secure-contact-radius, 8px);
+  padding: var(--secure-contact-padding, 0.55em 1.1em);
+  font: inherit;
+  color: var(--secure-contact-color, inherit);
+}
+
+[data-secure-contact]:hover {
+  background: var(--secure-contact-bg-hover, #ececee);
+}
+
+[data-secure-contact]:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.secure-contact-reveal {
+  margin-top: 0.35em;
+}
+
+.secure-contact-reveal a {
+  color: var(--secure-contact-color, inherit);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Vertical-expand animation, enabled via data-secure-contact-animate.
+   Uses the CSS grid 0fr -> 1fr technique so the collapsed/expanded
+   height is derived from content, no fixed heights or JS measuring. */
+.secure-contact-reveal--animate {
+  display: grid;
+  grid-template-rows: 0fr;
+  overflow: hidden;
+  transition: grid-template-rows var(--secure-contact-reveal-duration, 0.25s) ease;
+}
+
+.secure-contact-reveal--animate .secure-contact-reveal-inner {
+  min-height: 0;
+}
+
+.secure-contact-reveal--animate.is-open {
+  grid-template-rows: 1fr;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .secure-contact-reveal--animate {
+    transition: none;
+  }
+}

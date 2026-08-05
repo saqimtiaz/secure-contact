@@ -13,9 +13,5 @@
     "type": "whatsapp",
     "value": "15551234567",
     "parts": 3
-  },
-  "instagram": {
-    "type": "instagram",
-    "url": "https://instagram.com/yourhandle"
   }
 }
