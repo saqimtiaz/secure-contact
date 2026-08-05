@@ -160,6 +160,7 @@ secure-contact {
   --secure-contact-bg-hover: #ececee;
   --secure-contact-border: #ddd;
   --secure-contact-radius: 8px;
+  --secure-contact-reveal-height: 1.6em;
 }
 
 secure-contact::part(button),

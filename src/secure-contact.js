@@ -23,6 +23,15 @@
  *   key   (required) - which entry to read from the JSON data file
  *   src   (optional) - path to the JSON data file, default "./contact-data.json"
  *
+ * Reveal behavior:
+ *   - email / phone: the button stays visible and keeps its label. A space
+ *     is reserved beneath it (even before any click, to avoid layout
+ *     shift) where the decoded value is displayed once clicked.
+ *   - whatsapp: the button stays visible; clicking opens wa.me in a new
+ *     tab. Nothing is displayed inline, so no reserved space is added.
+ *   - instagram: not obfuscated, so it skips the button/reveal pattern
+ *     entirely and renders as a plain link immediately.
+ *
  * Styling (from the host page's CSS, no shadow-piercing needed):
  *   secure-contact {
  *     --secure-contact-bg: #f4f4f5;
@@ -31,6 +40,7 @@
  *     --secure-contact-color: inherit;
  *     --secure-contact-radius: 8px;
  *     --secure-contact-padding: 0.55em 1.1em;
+ *     --secure-contact-reveal-height: 1.6em;
  *   }
  *   secure-contact::part(button),
  *   secure-contact::part(link) { font-weight: 600; }
@@ -45,11 +55,21 @@ const DEFAULT_LABELS = {
   instagram: 'Instagram'
 };
 
+// Keys that display their decoded value inline beneath the button, and
+// so need reserved space from the start. Extend this if you add more
+// "display a value" contact types later.
+const INLINE_DISPLAY_KEYS = new Set(['email', 'phone']);
+
 const STYLE_TAG = `
 <style>
-  :host { display: inline-block; }
+  :host {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35em;
+  }
 
-  button, a {
+  button {
     all: unset;
     box-sizing: border-box;
     cursor: pointer;
@@ -64,8 +84,42 @@ const STYLE_TAG = `
     color: var(--secure-contact-color, inherit);
   }
 
-  button:hover, a:hover { background: var(--secure-contact-bg-hover, #ececee); }
+  button:hover { background: var(--secure-contact-bg-hover, #ececee); }
   button:disabled { opacity: 0.6; cursor: default; }
+
+  /* Reserved space for the revealed value - present from first render,
+     so nothing on the page shifts when the value appears. */
+  .reveal {
+    display: flex;
+    align-items: center;
+    min-height: var(--secure-contact-reveal-height, 1.6em);
+  }
+
+  .reveal a {
+    all: unset;
+    cursor: pointer;
+    color: var(--secure-contact-color, inherit);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  /* Standalone link render path (instagram) */
+  a.standalone {
+    all: unset;
+    box-sizing: border-box;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+    background: var(--secure-contact-bg, #f4f4f5);
+    border: 1px solid var(--secure-contact-border, #ddd);
+    border-radius: var(--secure-contact-radius, 8px);
+    padding: var(--secure-contact-padding, 0.55em 1.1em);
+    font: inherit;
+    color: var(--secure-contact-color, inherit);
+  }
+
+  a.standalone:hover { background: var(--secure-contact-bg-hover, #ececee); }
 </style>
 `;
 
@@ -96,29 +150,39 @@ class SecureContact extends HTMLElement {
     this._key = this.getAttribute('key');
     this._src = this.getAttribute('src') || './contact-data.json';
     this._label = (this.textContent || '').trim() || DEFAULT_LABELS[this._key] || 'Contact';
+    this._revealed = false;
+
+    if (this._key === 'instagram') {
+      // Not obfuscated - load and render immediately as a plain link,
+      // no button/reveal pattern needed.
+      this._renderInstagramLink();
+      return;
+    }
 
     this._renderButton();
-
-    // Instagram isn't obfuscated - load and render immediately, no click needed.
-    if (this._key === 'instagram') {
-      this._reveal();
-    }
   }
 
   _renderButton() {
     this.shadowRoot.innerHTML = STYLE_TAG;
+
     const btn = document.createElement('button');
     btn.part = 'button';
     btn.type = 'button';
     btn.textContent = this._label;
+    btn.addEventListener('click', () => this._reveal());
     this.shadowRoot.appendChild(btn);
 
-    if (this._key !== 'instagram') {
-      btn.addEventListener('click', () => this._reveal());
+    if (INLINE_DISPLAY_KEYS.has(this._key)) {
+      const reveal = document.createElement('div');
+      reveal.part = 'reveal';
+      reveal.className = 'reveal';
+      this.shadowRoot.appendChild(reveal);
     }
   }
 
   _reveal() {
+    if (this._revealed) return; // email/phone: already shown, nothing to do
+
     const btn = this.shadowRoot.querySelector('button');
     if (!btn || btn.disabled) return;
 
@@ -140,37 +204,52 @@ class SecureContact extends HTMLElement {
   }
 
   _applyEntry(entry, btn, originalLabel) {
-    if (entry.type === 'instagram') {
-      this._renderLink(entry.url, this._label);
-      return;
-    }
-
     const value = decodeParts(entry.parts);
 
-    if (entry.type === 'email') {
-      this._renderLink('mailto:' + value, value);
-    } else if (entry.type === 'tel') {
-      this._renderLink('tel:' + value, value);
+    if (entry.type === 'email' || entry.type === 'tel') {
+      const href = (entry.type === 'email' ? 'mailto:' : 'tel:') + value;
+      this._renderInlineValue(href, value);
+      btn.textContent = originalLabel;
+      btn.disabled = false;
+      this._revealed = true; // button stays visible; value now shown beneath it
     } else if (entry.type === 'whatsapp') {
       window.open('https://wa.me/' + value, '_blank', 'noopener');
       btn.textContent = originalLabel;
       btn.disabled = false;
+      // Not marked _revealed - nothing displayed inline, so repeat clicks
+      // should keep working (reopens WhatsApp each time, from cached data).
     } else {
       throw new Error('Unknown contact type: ' + entry.type);
     }
   }
 
-  _renderLink(href, text) {
-    this.shadowRoot.innerHTML = STYLE_TAG;
+  _renderInlineValue(href, text) {
+    const reveal = this.shadowRoot.querySelector('.reveal');
+    if (!reveal) return; // shouldn't happen for email/tel, but guard anyway
+    reveal.innerHTML = '';
     const a = document.createElement('a');
     a.part = 'link';
     a.href = href;
     a.textContent = text; // textContent, never innerHTML - safe from injection
-    if (/^https?:/.test(href)) {
-      a.target = '_blank';
-      a.rel = 'noopener';
-    }
-    this.shadowRoot.appendChild(a);
+    reveal.appendChild(a);
+  }
+
+  _renderInstagramLink() {
+    this.shadowRoot.innerHTML = STYLE_TAG;
+    SecureContact._loadData(this._src)
+      .then((data) => {
+        const entry = data[this._key];
+        if (!entry || !entry.url) throw new Error('No instagram entry/url for key "' + this._key + '"');
+        const a = document.createElement('a');
+        a.part = 'link';
+        a.className = 'standalone';
+        a.href = entry.url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.textContent = this._label;
+        this.shadowRoot.appendChild(a);
+      })
+      .catch((err) => console.error(err));
   }
 }
 
