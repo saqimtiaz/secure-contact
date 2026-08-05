@@ -1,0 +1,35 @@
+{
+  "name": "secure-contact",
+  "version": "1.0.0",
+  "description": "A reusable <secure-contact> custom element and CLI for securely displaying email, phone, WhatsApp, and Instagram contact links on static sites.",
+  "type": "module",
+  "main": "./src/secure-contact.js",
+  "exports": {
+    ".": "./src/secure-contact.js",
+    "./element": "./src/secure-contact.js",
+    "./codecs": "./src/codecs.js",
+    "./obfuscate": "./src/obfuscate.js",
+    "./generate": "./src/generate.js"
+  },
+  "bin": {
+    "secure-contact-generate": "./bin/generate-contact-data.js"
+  },
+  "files": [
+    "src",
+    "bin",
+    "contact-source.example.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "custom-element",
+    "web-component",
+    "contact-form",
+    "anti-scraping",
+    "email-obfuscation"
+  ],
+  "license": "MIT"
+}
