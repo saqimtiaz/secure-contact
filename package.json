@@ -1,6 +1,6 @@
 {
   "name": "secure-contact",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A progressive-enhancement script and CLI for securely displaying email, phone, and WhatsApp contact links on static sites using plain semantic HTML.",
   "type": "module",
   "main": "./src/secure-contact.js",

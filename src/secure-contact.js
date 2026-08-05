@@ -115,7 +115,7 @@ function enhance(button) {
 
     const src = getSrc(button);
     button.disabled = true;
-    button.textContent = 'Loading…';
+    //button.textContent = 'Loading…';
 
     loadData(src)
       .then((data) => {
@@ -138,11 +138,11 @@ function applyEntry(button, dd, entry, originalLabel, animate) {
   if (INLINE_DISPLAY_TYPES.has(entry.type)) {
     const href = (entry.type === 'email' ? 'mailto:' : 'tel:') + value;
     insertReveal(button, dd, href, value, animate);
-    button.textContent = originalLabel;
+    //button.textContent = originalLabel;
     button.disabled = false;
   } else if (entry.type === 'whatsapp') {
     window.open('https://wa.me/' + value, '_blank', 'noopener');
-    button.textContent = originalLabel;
+    //button.textContent = originalLabel;
     button.disabled = false;
   } else {
     throw new Error('Unknown contact type: ' + entry.type);
