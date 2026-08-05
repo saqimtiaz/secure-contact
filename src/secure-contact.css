@@ -16,15 +16,6 @@
 
 [data-secure-contact] {
   cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5em;
-  background: var(--secure-contact-bg, #f4f4f5);
-  border: 1px solid var(--secure-contact-border, #ddd);
-  border-radius: var(--secure-contact-radius, 8px);
-  padding: var(--secure-contact-padding, 0.55em 1.1em);
-  font: inherit;
-  color: var(--secure-contact-color, inherit);
 }
 
 [data-secure-contact]:hover {
