@@ -20,7 +20,8 @@
     "bin",
     "contact-source.example.json",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "static-assets.js"
   ],
   "engines": {
     "node": ">=18"
