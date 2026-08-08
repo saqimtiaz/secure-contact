@@ -12,7 +12,8 @@
     "./generate": "./src/generate.js"
   },
   "bin": {
-    "secure-contact-generate": "./bin/generate-contact-data.js"
+    "secure-contact-generate": "./bin/generate-contact-data.js",
+    "secure-contact": "./bin/secure-contact.js"
   },
   "files": [
     "src",
