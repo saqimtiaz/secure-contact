@@ -10,11 +10,10 @@
     "./codecs": "./src/codecs.js",
     "./obfuscate": "./src/obfuscate.js",
     "./generate": "./src/generate.js",
-    "./cli": "./bin/secure-contact.js"
+    "./static-assets": "./static-assets.js"
   },
   "bin": {
-    "secure-contact-generate": "./bin/generate-contact-data.js",
-    "secure-contact": "./bin/secure-contact.js"
+    "secure-contact-generate": "./bin/generate-contact-data.js"
   },
   "files": [
     "src",
