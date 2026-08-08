@@ -9,7 +9,8 @@
     "./css": "./src/secure-contact.css",
     "./codecs": "./src/codecs.js",
     "./obfuscate": "./src/obfuscate.js",
-    "./generate": "./src/generate.js"
+    "./generate": "./src/generate.js",
+    "./cli": "./bin/secure-contact.js"
   },
   "bin": {
     "secure-contact-generate": "./bin/generate-contact-data.js",
